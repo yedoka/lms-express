@@ -16,11 +16,18 @@ if (!CLIENT_URL) {
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+  cors: {
+    origin: CLIENT_URL,
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+});
 
 app.use(
   cors({
     origin: CLIENT_URL,
+    credentials: true,
   }),
 );
 
