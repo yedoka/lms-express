@@ -3,6 +3,8 @@ import cors from "cors";
 import http from "http";
 import { Server } from "socket.io";
 import { redis } from "./lib/redis.js";
+import { verifySocketToken } from "./lib/auth.js";
+import { startNotificationSubscriber } from "./lib/notifications.js";
 
 const PORT = process.env.PORT;
 const CLIENT_URL = process.env.CLIENT_URL;
@@ -40,14 +42,33 @@ app.get("/health", (req, res) => {
   res.json({ status: "OK" });
 });
 
+io.use(async (socket, next) => {
+  const token = socket.handshake.auth?.token as string | undefined;
+  if (!token) return next(new Error("Authentication required"));
+
+  const userId = await verifySocketToken(token);
+  if (!userId) return next(new Error("Invalid token"));
+
+  socket.data.userId = userId;
+  next();
+});
+
 io.on("connection", (socket) => {
-  console.log("a user connected");
+  const userId = socket.data.userId as string;
+  socket.join(`user:${userId}`);
+  console.log(`User ${userId} connected`);
+
+  socket.on("disconnect", () => {
+    console.log(`User ${userId} disconnected`);
+  });
 });
 
 async function start() {
   await redis.connect();
   const pong = await redis.ping();
   console.log(`Redis connected: ${pong}`);
+
+  startNotificationSubscriber(io);
 
   server.listen(PORT, () => {
     console.log(`Listening on PORT ${PORT}...`);
