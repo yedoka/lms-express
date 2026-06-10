@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import http from "http";
 import { Server } from "socket.io";
+import { redis } from "./lib/redis.js";
 
 const PORT = process.env.PORT;
 const CLIENT_URL = process.env.CLIENT_URL;
@@ -43,6 +44,14 @@ io.on("connection", (socket) => {
   console.log("a user connected");
 });
 
-server.listen(PORT, () => {
-  console.log(`Listening on PORT ${PORT}...`);
-});
+async function start() {
+  await redis.connect();
+  const pong = await redis.ping();
+  console.log(`Redis connected: ${pong}`);
+
+  server.listen(PORT, () => {
+    console.log(`Listening on PORT ${PORT}...`);
+  });
+}
+
+start();
