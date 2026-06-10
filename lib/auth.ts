@@ -11,14 +11,20 @@ const COOKIE_NAME =
     ? "__Secure-authjs.session-token"
     : "authjs.session-token";
 
-function getDerivedEncryptionKey(secret: string, salt: string): Uint8Array {
+// Key length must match the `enc` declared in the JWE header:
+// Auth.js v5 encrypts with A256CBC-HS512 (64-byte key); A256GCM uses 32.
+function getDerivedEncryptionKey(
+  enc: string,
+  secret: string,
+  salt: string
+): Uint8Array {
   return new Uint8Array(
     hkdfSync(
       "sha256",
       secret,
       salt,
       `Auth.js Generated Encryption Key (${salt})`,
-      32
+      enc === "A256CBC-HS512" ? 64 : 32
     )
   );
 }
@@ -26,12 +32,15 @@ function getDerivedEncryptionKey(secret: string, salt: string): Uint8Array {
 export async function verifySocketToken(token: string): Promise<string | null> {
   if (!SECRET) return null;
   try {
-    const key = getDerivedEncryptionKey(SECRET, COOKIE_NAME);
-    const { payload } = await jwtDecrypt(token, key, {
-      clockTolerance: 15,
-      keyManagementAlgorithms: ["dir"],
-      contentEncryptionAlgorithms: ["A256GCM", "A256CBC-HS512"],
-    });
+    const { payload } = await jwtDecrypt(
+      token,
+      ({ enc }) => getDerivedEncryptionKey(enc ?? "", SECRET, COOKIE_NAME),
+      {
+        clockTolerance: 15,
+        keyManagementAlgorithms: ["dir"],
+        contentEncryptionAlgorithms: ["A256GCM", "A256CBC-HS512"],
+      }
+    );
     return (payload.sub as string) ?? null;
   } catch {
     return null;
