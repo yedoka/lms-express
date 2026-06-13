@@ -5,7 +5,11 @@ import { Server } from "socket.io";
 import { redis } from "./lib/redis.js";
 import { verifySocketToken } from "./lib/auth.js";
 import { startNotificationSubscriber } from "./lib/notifications.js";
+import { startAdminActivitySubscriber } from "./lib/admin-activity.js";
 import { registerQuizSessionHandlers } from "./lib/quiz-session.js";
+
+const PRESENCE_TTL_SECONDS = 60;
+const PRESENCE_REFRESH_MS = 30_000;
 
 const PORT = process.env.PORT;
 const CLIENT_URL = process.env.CLIENT_URL;
@@ -47,21 +51,37 @@ io.use(async (socket, next) => {
   const token = socket.handshake.auth?.token as string | undefined;
   if (!token) return next(new Error("Authentication required"));
 
-  const userId = await verifySocketToken(token);
-  if (!userId) return next(new Error("Invalid token"));
+  const identity = await verifySocketToken(token);
+  if (!identity) return next(new Error("Invalid token"));
 
-  socket.data.userId = userId;
+  socket.data.userId = identity.userId;
+  socket.data.role = identity.role;
   next();
 });
 
 io.on("connection", (socket) => {
   const userId = socket.data.userId as string;
+  const role = socket.data.role as string;
   socket.join(`user:${userId}`);
+  if (role === "ADMIN") socket.join("admin");
   console.log(`User ${userId} connected`);
+
+  // Presence: mark online with a TTL, refreshed on a heartbeat so a hard
+  // disconnect expires naturally instead of leaving a ghost "online" key.
+  const presenceKey = `presence:${userId}`;
+  void redis.set(presenceKey, role, "EX", PRESENCE_TTL_SECONDS);
+  const presenceTimer = setInterval(() => {
+    void redis.set(presenceKey, role, "EX", PRESENCE_TTL_SECONDS);
+  }, PRESENCE_REFRESH_MS);
 
   registerQuizSessionHandlers(io, socket);
 
   socket.on("disconnect", () => {
+    clearInterval(presenceTimer);
+    // Only clear presence if this user has no other open sockets
+    void io.in(`user:${userId}`).fetchSockets().then((sockets) => {
+      if (sockets.length === 0) void redis.del(presenceKey);
+    });
     console.log(`User ${userId} disconnected`);
   });
 });
@@ -72,6 +92,7 @@ async function start() {
   console.log(`Redis connected: ${pong}`);
 
   startNotificationSubscriber(io);
+  startAdminActivitySubscriber(io);
 
   server.listen(PORT, () => {
     console.log(`Listening on PORT ${PORT}...`);
