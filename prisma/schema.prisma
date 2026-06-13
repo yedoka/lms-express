@@ -1,0 +1,217 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String?
+  email     String   @unique
+  password  String
+  role      UserRole @default(STUDENT)
+  image     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  courses       Course[]
+  enrollments   Enrollment[]
+  attempts      QuizAttempt[]
+  notifications Notification[]
+  progress      LessonProgress[]
+
+  overridesCreated QuizOverride[] @relation("OverrideCreator")
+  overridesUpdated QuizOverride[] @relation("OverrideUpdater")
+}
+
+model Course {
+  id          String  @id @default(cuid())
+  title       String
+  description String? @db.Text
+  thumbnail   String?
+  category    String?
+  isPublished Boolean @default(false)
+  teacherId   String
+  teacher     User    @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lessons     Lesson[]
+  enrollments Enrollment[]
+}
+
+model Lesson {
+  id          String  @id @default(cuid())
+  title       String
+  description String? @db.Text
+  videoUrl    String?
+  position    Int     @default(0)
+  isPublished Boolean @default(false)
+  courseId    String
+  course      Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  attachments Attachment[]
+  quizzes     Quiz[]
+  progress    LessonProgress[]
+}
+
+model Attachment {
+  id       String @id @default(cuid())
+  name     String
+  url      String
+  size     Int    @default(0)
+  lessonId String
+  lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Enrollment {
+  id       String @id @default(cuid())
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, courseId])
+}
+
+model LessonProgress {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId    String
+  lesson      Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  isCompleted Boolean   @default(false)
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, lessonId])
+}
+
+model Quiz {
+  id           String  @id @default(cuid())
+  title        String
+  lessonId     String
+  lesson       Lesson  @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  timeLimit    Int?
+  passingScore Int     @default(70)
+  isPublished  Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  questions Question[]
+  attempts  QuizAttempt[]
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  BOOLEAN
+}
+
+model Question {
+  id       String       @id @default(cuid())
+  quizId   String
+  quiz     Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  text     String       @db.Text
+  type     QuestionType @default(MULTIPLE_CHOICE)
+  points   Int          @default(1)
+  position Int          @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  answers        Answer[]
+  attemptAnswers AttemptAnswer[]
+}
+
+model Answer {
+  id         String   @id @default(cuid())
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  text       String
+  isCorrect  Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  attemptAnswers AttemptAnswer[]
+}
+
+model QuizAttempt {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quizId      String
+  quiz        Quiz      @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  score       Int       @default(0)
+  passed      Boolean   @default(false)
+  startedAt   DateTime  @default(now())
+  submittedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  answers  AttemptAnswer[]
+  override QuizOverride?
+}
+
+model AttemptAnswer {
+  id         String      @id @default(cuid())
+  attemptId  String
+  attempt    QuizAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId String
+  question   Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answerId   String
+  answer     Answer      @relation(fields: [answerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([attemptId, questionId])
+}
+
+model QuizOverride {
+  id            String      @id @default(cuid())
+  quizAttemptId String      @unique
+  attempt       QuizAttempt @relation(fields: [quizAttemptId], references: [id], onDelete: Cascade)
+  originalScore Int
+  newScore      Int
+  reason        String?     @db.Text
+  createdBy     String
+  creator       User        @relation("OverrideCreator", fields: [createdBy], references: [id])
+  updatedBy     String?
+  updater       User?       @relation("OverrideUpdater", fields: [updatedBy], references: [id])
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model Notification {
+  id      String    @id @default(cuid())
+  userId  String
+  user    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type    String
+  message String
+  readAt  DateTime?
+
+  createdAt DateTime @default(now())
+}

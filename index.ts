@@ -5,6 +5,7 @@ import { Server } from "socket.io";
 import { redis } from "./lib/redis.js";
 import { verifySocketToken } from "./lib/auth.js";
 import { startNotificationSubscriber } from "./lib/notifications.js";
+import { registerQuizSessionHandlers } from "./lib/quiz-session.js";
 
 const PORT = process.env.PORT;
 const CLIENT_URL = process.env.CLIENT_URL;
@@ -57,6 +58,8 @@ io.on("connection", (socket) => {
   const userId = socket.data.userId as string;
   socket.join(`user:${userId}`);
   console.log(`User ${userId} connected`);
+
+  registerQuizSessionHandlers(io, socket);
 
   socket.on("disconnect", () => {
     console.log(`User ${userId} disconnected`);

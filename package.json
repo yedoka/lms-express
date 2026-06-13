@@ -3,19 +3,27 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "postinstall": "prisma generate"
+  },
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/express": "^5.0.6"
+    "@types/express": "^5.0.6",
+    "@types/pg": "^8.11.10",
+    "prisma": "^6.9.0"
   },
   "peerDependencies": {
     "typescript": "^5"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "^6.9.0",
+    "@prisma/client": "^6.9.0",
     "@types/cors": "^2.8.19",
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "ioredis": "^5.10.1",
     "jose": "^6.2.3",
+    "pg": "^8.13.3",
     "socket.io": "^4.8.3"
   }
 }
