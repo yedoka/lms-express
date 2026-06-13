@@ -29,14 +29,7 @@ function getDerivedEncryptionKey(
   );
 }
 
-export interface SocketIdentity {
-  userId: string;
-  role: string;
-}
-
-export async function verifySocketToken(
-  token: string
-): Promise<SocketIdentity | null> {
+export async function verifySocketToken(token: string): Promise<string | null> {
   if (!SECRET) return null;
   try {
     const { payload } = await jwtDecrypt(
@@ -48,9 +41,7 @@ export async function verifySocketToken(
         contentEncryptionAlgorithms: ["A256GCM", "A256CBC-HS512"],
       }
     );
-    const userId = (payload.sub as string) ?? null;
-    if (!userId) return null;
-    return { userId, role: (payload.role as string) ?? "STUDENT" };
+    return (payload.sub as string) ?? null;
   } catch {
     return null;
   }
