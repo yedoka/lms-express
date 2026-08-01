@@ -1,4 +1,4 @@
-# lms-express
+# skillbase-express
 
 To install dependencies:
 

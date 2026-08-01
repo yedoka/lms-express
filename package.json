@@ -1,5 +1,5 @@
 {
-  "name": "lms-express",
+  "name": "skillbase-express",
   "module": "index.ts",
   "type": "module",
   "private": true,
